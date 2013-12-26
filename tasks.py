@@ -1,6 +1,6 @@
 from celery import Celery
 
-from train import train
+from regression import train
 # CELERY_BROKER_URL='redis://localhost:6379'
 
 
