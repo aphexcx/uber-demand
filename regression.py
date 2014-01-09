@@ -4,7 +4,6 @@ import json
 from collections import defaultdict
 from redis import Redis
 from sklearn import svm
-from sklearn.externals import joblib
 
 try:
     import dateutil.parser
@@ -17,12 +16,15 @@ import numpy as np
 from mayavi import mlab
 
 
-class PredictionException(Exception):
+class UntrainedException(Exception):
     pass
 
-reg = None
+
+class PlotException(Exception):
+    pass
 
 
+#TODO: Day of week
 def train(logins):
     redis = Redis()
     logincount = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
@@ -93,28 +95,59 @@ def train(logins):
     y = np.array(y)
     z = np.array([tup[0] for tup in X])
 
-    # plot(x, y, z)
-##
+    redis.set('x', pickle.dumps(x))
+    redis.set('y', pickle.dumps(y))
+    redis.set('z', pickle.dumps(z))
 
-def plot(x, y, z):
-    # Define the points in 3D space
-    # including color code based on Z coordinate.
-    pts = mlab.points3d(x, y, z, y)
+
+def plot(view="iso"):
+    redis = Redis()
+    x, y, z = (pickle.loads(redis.get('x')), pickle.loads(redis.get('y')),
+               pickle.loads(redis.get('z')))
+    if None in (x, y, z):
+        raise UntrainedException("You must train first!")
+
+    # mlab.options.offscreen = True
 
     # Simple plot.
+    fig = mlab.figure(size=(800, 600))
+    # fig.scene.off_screen_rendering = True
+    # Define the points in 3D space
+    # including color code based on Z coordinate.
+    mlab.points3d(x, y, z, y)
+
     mlab.xlabel("day of month")
     mlab.ylabel("# logins")
     mlab.zlabel("hour")
-    mlab.savefig(filename='test.png')
-    # mlab.show()
 
-    # import ipdb; ipdb.set_trace()
+    views = {"xp": fig.scene.x_plus_view,
+             "xm": fig.scene.x_minus_view,
+             "yp": fig.scene.y_plus_view,
+             "ym": fig.scene.y_minus_view,
+             "zp": fig.scene.z_plus_view,
+             "zm": fig.scene.z_minus_view,
+             "iso": fig.scene.isometric_view
+    }
+
+    try:
+        views[view]()
+    except KeyError as e:
+        raise PlotException("Invalid viewwwww option: %s" % view)
+
+    # can't save directly to stringIO, so have to go through a file
+    fig.scene.save_png('fig.png')
+    fig.parent.close_scene(fig)
+    mlab.show()  # cycle mlab's event loop to close it down
+    with open('fig.png', 'rb') as f:
+        buf = f.read()
+
+    return buf
 
 
 def predict(tuple_list):
     redis = Redis()
     if not redis.exists('regressor'):
-        raise PredictionException("You must train first!")
+        raise UntrainedException("You must train first!")
     reg = pickle.loads(redis.get('regressor'))
     return reg.predict(tuple_list)
 
@@ -123,6 +156,7 @@ def main(args):
     with open(args[1]) as f:
         logins = json.load(f)
     train(logins)
+
 
 if __name__ == "__main__":
     main(sys.argv)

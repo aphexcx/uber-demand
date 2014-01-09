@@ -1,6 +1,6 @@
 from celery import Celery
 
-from regression import train
+from regression import train, plot
 # CELERY_BROKER_URL='redis://localhost:6379'
 
 
@@ -30,3 +30,7 @@ celery = make_celery(flask_app)
 @celery.task()
 def train_async(logins):
     train(logins)
+
+@celery.task()
+def plot_async(view):
+    return plot(view)
