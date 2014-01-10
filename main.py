@@ -67,13 +67,13 @@ def predict():
     start_date = request.args.get('start_date')
     end_date = request.args.get('end_date')
 
-    #convert to hour, day of month tuples
+    #convert to hour, weekday tuples
     start_dt = dateutil.parser.parse(start_date)
     end_dt = dateutil.parser.parse(end_date)
 
     input_range = []
     for dt in rrule.rrule(rrule.HOURLY, dtstart=start_dt, until=end_dt):
-        input_range.append([dt.hour, dt.day])
+        input_range.append([dt.hour, dt.weekday()])
 
     #call predict
     try:
@@ -104,7 +104,7 @@ def plot():
         "zm": z axis, minus
         "iso": isometric
     """
-    view = request.args.get('view')
+    view = request.args.get("view", "iso")
     print ">>%s<<" % view
     # delegating to celery because mayavi's plotting can't be done
     # on a background thread.

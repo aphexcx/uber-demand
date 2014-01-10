@@ -2,6 +2,7 @@ import cPickle as pickle
 import sys
 import json
 from collections import defaultdict
+import datetime
 from redis import Redis
 from sklearn import svm
 
@@ -26,70 +27,50 @@ class PlotException(Exception):
 
 #TODO: Day of week
 def train(logins):
+    """ Trains a simple SVR on the input data.
+    Uses the hour and the day of week as the regressor variable,
+    and the # of logins for that hour as the regressand.
+    This reflects the impact on demand in the real world by the hour of day
+    and whether it's a weekend or a weekday.
+    I could add more dimensions/features to this to further beef it up,
+    for example:
+        - week number (i.e. 1-52)
+        - day of the month (i.e. 1-31)
+        - extra external data points like holidays (such as new years eve,
+         christmas..), weather, traffic...
+    """
     redis = Redis()
-    logincount = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))
+    logincount = defaultdict(int)
     for login in logins:
         dt = dateutil.parser.parse(login)
         hour = dt.hour
         day = dt.day
         month = dt.month
-        logincount[month][day][hour] += 1
+        year = dt.year
+        logincount[year, month, day, hour] += 1
 
-    # regressor; hour, day of month
-    X = [] # 1,1 2,1, 3,1 ... 1,31 2,31 3,31 4,31
+    # regressor; a tuple of (hour, weekday)
+    # the day of the week is an integer, where Monday is 0 and Sunday is 6.
+    X = []  # 0,0 1,0, 2,0 ... 20,6 21,6 22,6 23,6
 
-    # regressand; number of logins for that hour of that day of month
+    # regressand; number of logins for that hour of that day of week
     y = [] # 33, 42, 12 ...
 
-    #TODO: why is this 3?
-    for month in [3]:
-        #hours_since_start_of_month = 0
-        for day in logincount[month]:
-            for hour in logincount[month][day]:
-                numlogins = logincount[month][day][hour]
-                #hours_since_start_of_month += 1
-                X.append([hour, day])
-                y.append(numlogins)
+    for (year, month, day, hour), numlogins in logincount.iteritems():
+        weekday = datetime.datetime(year, month, day, hour).weekday()
+        X.append([hour, weekday])
+        y.append(numlogins)
+    import ipdb; ipdb.set_trace()
 
-    # >>> from sklearn import svm
-    # >>> X = [[0, 0], [2, 2]]
-    # >>> y = [0.5, 2.5]
-    # >>> clf = svm.SVR()
-    # >>> clf.fit(X, y)
-    # SVR(C=1.0, cache_size=200, coef0=0.0, degree=3,
-    # epsilon=0.1, gamma=0.0, kernel='rbf', max_iter=-1, probability=False,
-    # random_state=None, shrinking=True, tol=0.001, verbose=False)
-    # >>> clf.predict([[1, 1]])
-    # array([ 1.5])
-    svr = svm.SVR(C=15)
+    #TODO: Explain C
+    svr = svm.SVR(C=15, cache_size=200, coef0=0.0, degree=3, epsilon=0.1,
+                  gamma=0.0, kernel='rbf', max_iter=-1, probability=False,
+                  random_state=None, shrinking=True, tol=0.001, verbose=False)
     print 'Fitting...'
     svr.fit(X, y)
 
+    # Save the regressor to redis so we can use it later for predicting.
     redis.set('regressor', pickle.dumps(svr))
-    #
-    #y_clf = clf.predict(X)
-
-    #from mpl_toolkits.mplot3d import Axes3D
-    #import numpy as np
-    #import matplotlib
-    #import matplotlib.pyplot as plt
-
-    #fig = plt.figure()
-    #ax = Axes3D(fig)
-
-    #x = [6,3,6,9,12,24]
-    #y = [3,5,78,12,23,56]
-
-    ##
-    #x = [x[1] for x in X]
-    #y = y
-    #z = [x[0] for x in X]
-    #csv = []
-    #for i, x in enumerate(X):
-    #    csv.append("%s,%s,%s\n" % (x[0], x[1], y[i]))
-    #
-    #with open("axes.csv", "w") as f:
-    #    f.writelines(csv)
 
     x = np.array([tup[1] for tup in X])
     y = np.array(y)
@@ -116,7 +97,7 @@ def plot(view="iso"):
     # including color code based on Z coordinate.
     mlab.points3d(x, y, z, y)
 
-    mlab.xlabel("day of month")
+    mlab.xlabel("day of week")
     mlab.ylabel("# logins")
     mlab.zlabel("hour")
 
