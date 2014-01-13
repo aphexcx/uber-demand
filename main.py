@@ -57,6 +57,8 @@ def index():
     Main index page. Welcome!"""
     html_doc = pydoc.HTMLDoc()
     html = html_doc.docmodule(sys.modules[__name__])
+    # sneaky rewrite so the links in the docstrings still work
+    html = html.replace('http://127.0.0.1:5000/', request.host_url)
     return html
 
 
