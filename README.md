@@ -1,8 +1,6 @@
 uber-demand
 ===========
 
-Predict future demand for uber drivers, based on historical data.
-
 One of the most important signals in Uber's system is demand. It's used in
 a variety of capacities, from calculating dynamic (surge) pricing to making
 decisions about the number of drivers needed to keep the system running
