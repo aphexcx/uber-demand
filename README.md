@@ -10,22 +10,36 @@ open the Uber app on their phones.
 This service predicts future demand based on historical data.
 
 Setup:
+
 1) Install MayaVi:
-    a) Grab VTK and wxPython:
-        apt-get python-vtk python-wxgtk2.8 (debian/ubuntu)
-        yum install vtk-python wxPython-devel (centos/rhel)
-    b) On Centos, mayavi works better if you install it from yum:
-        yum install Mayavi
-       Otherwise, just use pip:
-        pip install wxpython mayavi
+
+* Grab VTK and wxPython:
+```
+    apt-get python-vtk python-wxgtk2.8 (debian/ubuntu)
+    yum install vtk-python wxPython-devel (centos/rhel)
+```
+
+* On Centos, mayavi works better if you install it from yum:
+```
+    yum install Mayavi
+```
+   Otherwise, just use pip:
+```
+    pip install wxpython mayavi
+```
 
 2) Install requirements.txt
+
         pip install -r requirements.txt
 
 3) Start redis:
+
         redis-server
-    and run the celery worker with:
+        
+and run the celery worker with:
+
         celery worker --app=tasks --loglevel=info
 
 You're ready to run!
+
         python main.py
