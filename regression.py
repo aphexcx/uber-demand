@@ -58,8 +58,6 @@ def train(logins):
         X.append([hour, weekday])
         y.append(numlogins)
 
-    # import ipdb; ipdb.set_trace()
-
     # Generating a good value for C:
     # from https://icme.hpc.msstate.edu/mediawiki/images/5/55/SVR.pdf
     # C is also referred to as the regression parameter or penalty parameter.
@@ -125,12 +123,12 @@ def plot(view="iso"):
         views[view]()
     except KeyError as e:
         raise PlotException("Invalid view option: %s" % view)
-    # import ipdb; ipdb.set_trace()
+
     # can't save directly to stringIO, so have to go through a file
     fig.scene.save_png('fig.png')
     # mayavi doesn't seem to play well with celery on some platforms and
     # doesn't shut down properly - probably because it's in a background thread
-    # celery just throws a WorkerLostError on centos.
+    # on centos, celery just throws a WorkerLostError after a couple of requests.
     # fig.remove()
 
     # fig.parent.close_scene(fig)
