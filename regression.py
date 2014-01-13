@@ -1,18 +1,15 @@
+# -*- coding: utf-8 -*-
+
 import cPickle as pickle
 import sys
 import json
 from collections import defaultdict
 import datetime
+import logging
+
+import dateutil.parser
 from redis import Redis
 from sklearn import svm
-
-try:
-    import dateutil.parser
-except ImportError:
-    print ("You need python-dateutil installed, please run "
-           "`pip install python-dateutil`.")
-    sys.exit(1)
-
 import numpy as np
 from mayavi import mlab
 
@@ -25,9 +22,8 @@ class PlotException(Exception):
     pass
 
 
-#TODO: Day of week
 def train(logins):
-    """ Trains a simple SVR on the input data.
+    """ Trains sklearn's epsilon-Support Vector Regression model on input data.
     Uses the hour and the day of week as the regressor variable,
     and the # of logins for that hour as the regressand.
     This reflects the impact on demand in the real world by the hour of day
@@ -39,6 +35,7 @@ def train(logins):
         - extra external data points like holidays (such as new years eve,
          christmas..), weather, traffic...
     """
+    logger = logging.getLogger(__name__)
     redis = Redis()
     logincount = defaultdict(int)
     for login in logins:
@@ -49,29 +46,40 @@ def train(logins):
         year = dt.year
         logincount[year, month, day, hour] += 1
 
-    # regressor; a tuple of (hour, weekday)
+    # regressor; tuples of (hour, weekday)
     # the day of the week is an integer, where Monday is 0 and Sunday is 6.
-    X = []  # 0,0 1,0, 2,0 ... 20,6 21,6 22,6 23,6
+    X = []  # (0,0), (1,0), (2,0), ... (21,6), (22,6), (23,6)
 
     # regressand; number of logins for that hour of that day of week
-    y = [] # 33, 42, 12 ...
+    y = []  # 33, 42, 12, ...
 
     for (year, month, day, hour), numlogins in logincount.iteritems():
         weekday = datetime.datetime(year, month, day, hour).weekday()
         X.append([hour, weekday])
         y.append(numlogins)
-    import ipdb; ipdb.set_trace()
 
-    #TODO: Explain C
-    svr = svm.SVR(C=15, cache_size=200, coef0=0.0, degree=3, epsilon=0.1,
+    # import ipdb; ipdb.set_trace()
+
+    # Generating a good value for C:
+    # from https://icme.hpc.msstate.edu/mediawiki/images/5/55/SVR.pdf
+    # C is also referred to as the regression parameter or penalty parameter.
+    # Cherkassky and Ma propose C be chosen as
+    # C = max(|µy + 3σy)|, |µy - 3σy)|)
+    # where µy and σy are the mean and standard deviation of the training point responses.
+    C = max(abs(np.mean(y) + 3*np.std(y)), abs(np.mean(y) - 3 * np.std(y)))
+
+    svr = svm.SVR(C=C, cache_size=200, coef0=0.0, degree=3, epsilon=0.1,
                   gamma=0.0, kernel='rbf', max_iter=-1, probability=False,
                   random_state=None, shrinking=True, tol=0.001, verbose=False)
-    print 'Fitting...'
+
+    # Fit our SVR to the training data.
+    logger.info('Fitting...')
     svr.fit(X, y)
 
     # Save the regressor to redis so we can use it later for predicting.
     redis.set('regressor', pickle.dumps(svr))
 
+    # Generate the x y z coords to be used for plotting.
     x = np.array([tup[1] for tup in X])
     y = np.array(y)
     z = np.array([tup[0] for tup in X])
@@ -83,16 +91,19 @@ def train(logins):
 
 def plot(view="iso"):
     redis = Redis()
-    x, y, z = (pickle.loads(redis.get('x')), pickle.loads(redis.get('y')),
-               pickle.loads(redis.get('z')))
-    if None in (x, y, z):
+    px, py, pz = (redis.get('x'), redis.get('y'), redis.get('z'))
+    if None in (px, py, pz):
+
         raise UntrainedException("You must train first!")
 
-    # mlab.options.offscreen = True
+    x, y, z = (pickle.loads(px), pickle.loads(py), pickle.loads(pz))
 
-    # Simple plot.
     fig = mlab.figure(size=(800, 600))
+
+    # these options could help on certain platforms
+    # mlab.options.offscreen = True
     # fig.scene.off_screen_rendering = True
+
     # Define the points in 3D space
     # including color code based on Z coordinate.
     mlab.points3d(x, y, z, y)
@@ -113,12 +124,19 @@ def plot(view="iso"):
     try:
         views[view]()
     except KeyError as e:
-        raise PlotException("Invalid viewwwww option: %s" % view)
-
+        raise PlotException("Invalid view option: %s" % view)
+    # import ipdb; ipdb.set_trace()
     # can't save directly to stringIO, so have to go through a file
     fig.scene.save_png('fig.png')
-    fig.parent.close_scene(fig)
-    mlab.show()  # cycle mlab's event loop to close it down
+    # mayavi doesn't seem to play well with celery on some platforms and
+    # doesn't shut down properly - probably because it's in a background thread
+    # celery just throws a WorkerLostError on centos.
+    # fig.remove()
+
+    # fig.parent.close_scene(fig)
+    # this doesn't work on centos:
+    # mlab.close()
+
     with open('fig.png', 'rb') as f:
         buf = f.read()
 

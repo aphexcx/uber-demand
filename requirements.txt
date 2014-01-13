@@ -1,0 +1,6 @@
+celery[redis]
+flask
+numpy
+scipy
+scikit-learn
+python-dateutil
