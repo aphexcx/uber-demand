@@ -106,9 +106,14 @@ def plot(view="iso"):
     # including color code based on Z coordinate.
     mlab.points3d(x, y, z, y)
 
-    mlab.xlabel("day of week")
-    mlab.ylabel("# logins")
-    mlab.zlabel("hour")
+    xlabel = "day of week"
+    ylabel = "# logins"
+    zlabel = "hour"
+
+    mlab.axes(xlabel=xlabel, ylabel=ylabel, zlabel=zlabel,
+              ranges=[0, 6, min(y), max(y), 0, 23])
+    mlab.scalarbar(title=ylabel, nb_labels=10, orientation='vertical')
+    mlab.orientation_axes(xlabel=xlabel, ylabel=ylabel, zlabel=zlabel)
 
     views = {"xp": fig.scene.x_plus_view,
              "xm": fig.scene.x_minus_view,

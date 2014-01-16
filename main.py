@@ -137,13 +137,13 @@ def plot():
     curl -X GET "http://127.0.0.1:5000/plot?view=iso"
 
     Examples of possible valid view orientations:
+        "http://127.0.0.1:5000/plot?view=iso": isometric
         "http://127.0.0.1:5000/plot?view=xp": x axis, plus
         "http://127.0.0.1:5000/plot?view=xm": x axis, minus
         "http://127.0.0.1:5000/plot?view=yp": y axis, plus
         "http://127.0.0.1:5000/plot?view=ym": y axis, minus
         "http://127.0.0.1:5000/plot?view=zp": z axis, plus
         "http://127.0.0.1:5000/plot?view=zm": z axis, minus
-        "http://127.0.0.1:5000/plot?view=iso": isometric
     """
     view = request.args.get("view", "iso")
     # delegating to celery because mayavi's plotting can't be done
